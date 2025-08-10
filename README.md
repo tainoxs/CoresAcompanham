@@ -30,7 +30,6 @@ Este projeto captura a cor média de uma região da tela e a envia para o QLC+ v
 
 1. **Configure o `main.py`:**
    - `QLC_IP`: Defina o endereço IP onde o QLC+ está rodando (por padrão, `"127.0.0.1"` para a mesma máquina).
-   
    - `sct.monitors[1]`: O `[1]` se refere ao monitor principal. Se você tiver múltiplos monitores, pode ser necessário ajustar este valor (`[0]` para todos os monitores, `[2]` para o segundo, etc.).
    - `region`: Você pode ajustar a área de captura alterando os valores de `width`, `height`, `left` e `top` na função `get_average_color`.
 
