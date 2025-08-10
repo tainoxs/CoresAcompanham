@@ -4,29 +4,50 @@ import socket
 import struct
 import time
 import cv2
+from sklearn.cluster import KMeans
 
 # IP do QLC+ (normalmente localhost)
 QLC_IP = "127.0.0.1"
 ARTNET_PORT = 6454
 
 # Fator de suavização (0.0 a 1.0). Valores menores = mais suave.
-SMOOTHING_FACTOR = 0.3
-BRIGHTNESS_FACTOR = 2.5  # Ajuste este valor para aumentar o brilho (e.g., 1.5, 2.0)
+# Fator de suavização (0.0 a 1.0). Valores menores = mais suave.
+SMOOTHING_FACTOR = 0.8
+BRIGHTNESS_FACTOR = 1.5  # Ajuste este valor para aumentar o brilho (e.g., 1.5, 2.0)
 
 def get_average_color():
     with mss.mss() as sct:
         monitor = sct.monitors[2]  # tela principal
         # captura apenas um quadrado pequeno (800x800px no centro, testar depois com 1920x788 lá)
-        width, height = 1080, 450
+        width, height = 1080, 720
         left = monitor['left'] + (monitor['width'] - width) // 2
         top = monitor['top'] + (monitor['height'] - height) // 2
         region = {'top': top, 'left': left, 'width': width, 'height': height}
         img = sct.grab(region)
         img_np = np.array(img)
 
-        r = min(255, int(np.mean(img_np[:, :, 2]) * BRIGHTNESS_FACTOR))
-        g = min(255, int(np.mean(img_np[:, :, 1]) * BRIGHTNESS_FACTOR))
-        b = min(255, int(np.mean(img_np[:, :, 0]) * BRIGHTNESS_FACTOR))
+        # Remodelar a imagem para uma lista de pixels
+        pixels = img_np.reshape(-1, 4)[:, :3]  # Ignorar o canal alfa
+
+        # Filtrar pixels escuros (e.g., perto de preto)
+        non_dark_pixels = pixels[np.sum(pixels, axis=1) > 50]
+
+        if len(non_dark_pixels) == 0:  # Se todos os pixels forem escuros
+            return 0, 0, 0
+
+        # Usar K-Means para encontrar a cor dominante
+        # Usamos n_clusters=1 para obter a cor média dos pixels não escuros
+        kmeans = KMeans(n_clusters=1, random_state=0, n_init=1).fit(non_dark_pixels)
+        dominant_color = kmeans.cluster_centers_[0]
+
+        # A cor dominante está em BGR, precisamos converter para RGB para o Art-Net
+        b_dom, g_dom, r_dom = map(int, dominant_color)
+
+        # Aplicar o fator de brilho
+        r = min(255, int(r_dom * BRIGHTNESS_FACTOR))
+        g = min(255, int(g_dom * BRIGHTNESS_FACTOR))
+        b = min(255, int(b_dom * BRIGHTNESS_FACTOR))
+
 
         # Adiciona o texto com os valores RGB na imagem
         text = f"RGB: ({r}, {g}, {b})"
