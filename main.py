@@ -11,7 +11,7 @@ ARTNET_PORT = 6454
 
 # Fator de suavização (0.0 a 1.0). Valores menores = mais suave.
 SMOOTHING_FACTOR = 0.3
-BRIGHTNESS_FACTOR = 2.5  # Ajuste este valor para aumentar o brilho (e.g., 1.5, 2.0)
+BRIGHTNESS_FACTOR = 2  # Ajuste este valor para aumentar o brilho (e.g., 1.5, 2.0)
 
 def get_average_color():
     with mss.mss() as sct:
@@ -24,9 +24,31 @@ def get_average_color():
         img = sct.grab(region)
         img_np = np.array(img)
 
-        r = min(255, int(np.mean(img_np[:, :, 2]) * BRIGHTNESS_FACTOR))
-        g = min(255, int(np.mean(img_np[:, :, 1]) * BRIGHTNESS_FACTOR))
-        b = min(255, int(np.mean(img_np[:, :, 0]) * BRIGHTNESS_FACTOR))
+        # Calcula a média de cada canal de cor
+        r_avg = np.mean(img_np[:, :, 2])
+        g_avg = np.mean(img_np[:, :, 1])
+        b_avg = np.mean(img_np[:, :, 0])
+
+        # Lógica condicional para multiplicar a cor dominante
+        if r_avg > g_avg and r_avg > b_avg:
+            r = min(255, int(r_avg * BRIGHTNESS_FACTOR))
+            g = min(255, int(g_avg * (BRIGHTNESS_FACTOR - 0.5)))
+            b = min(255, int(b_avg * (BRIGHTNESS_FACTOR - 0.5)))
+
+        elif g_avg > r_avg and g_avg > b_avg:
+            g = min(255, int(g_avg * BRIGHTNESS_FACTOR))
+            r = min(255, int(r_avg * (BRIGHTNESS_FACTOR - 0.5)))
+            b = min(255, int(b_avg * (BRIGHTNESS_FACTOR - 0.5)))
+
+        elif b_avg > r_avg and b_avg > g_avg:
+            b = min(255, int(b_avg * BRIGHTNESS_FACTOR))
+            r = min(255, int(r_avg * (BRIGHTNESS_FACTOR - 0.5)))
+            g = min(255, int(g_avg * (BRIGHTNESS_FACTOR - 0.5)))
+        else:
+            # Caso haja empate ou cores muito escuras, não multiplica nenhuma
+            r = int(r_avg * (BRIGHTNESS_FACTOR - 0.5))
+            g = int(g_avg * (BRIGHTNESS_FACTOR - 0.5))
+            b = int(b_avg * (BRIGHTNESS_FACTOR - 0.5))
 
         # Adiciona o texto com os valores RGB na imagem
         text = f"RGB: ({r}, {g}, {b})"
@@ -70,7 +92,7 @@ if __name__ == "__main__":
     while True:
         r, g, b = get_average_color()
 
-        # Suaviza a transição de cor
+        # Suaviza a transição de cor e garante que os valores não excedam 255
         smooth_r = int(last_r + (r - last_r) * SMOOTHING_FACTOR)
         smooth_g = int(last_g + (g - last_g) * SMOOTHING_FACTOR)
         smooth_b = int(last_b + (b - last_b) * SMOOTHING_FACTOR)
