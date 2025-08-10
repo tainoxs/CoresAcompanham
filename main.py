@@ -93,9 +93,9 @@ if __name__ == "__main__":
         r, g, b = get_average_color()
 
         # Suaviza a transição de cor e garante que os valores não excedam 255
-        smooth_r = int(last_r + (r - last_r) * SMOOTHING_FACTOR)
-        smooth_g = int(last_g + (g - last_g) * SMOOTHING_FACTOR)
-        smooth_b = int(last_b + (b - last_b) * SMOOTHING_FACTOR)
+        smooth_r = min(255, int(last_r + (r - last_r) * SMOOTHING_FACTOR))
+        smooth_g = min(255, int(last_g + (g - last_g) * SMOOTHING_FACTOR))
+        smooth_b = min(255, int(last_b + (b - last_b) * SMOOTHING_FACTOR))
 
         send_artnet_dmx(smooth_r, smooth_g, smooth_b)
         print(f"Cor enviada: R={smooth_r} G={smooth_g} B={smooth_b}")
