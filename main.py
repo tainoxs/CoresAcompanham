@@ -14,8 +14,8 @@ SMOOTHING_FACTOR = 0.1# Fator de suavização (0.0 a 1.0). Valores menores = mai
 BRIGHTNESS_GAIN = 0  # Valor a ser adicionado (0-255) (FICA MAIS BRANCO)
 SATURATION_FACTOR = 0.8 # Fator de Saturação (1.0 = normal, >1.0 = mais saturado)
 R_GAIN = 1.0 # Fator de ganho para o canal vermelho (1.0 = sem ganho)
-G_GAIN = 1 # Fator de ganho para o canal verde (1.0 = sem ganho)
-B_GAIN = 0.75 # Fator de ganho para o canal azul (1.0 = sem ganho)
+G_GAIN = 0.95 # Fator de ganho para o canal verde (1.0 = sem ganho)
+B_GAIN = 0.8 # Fator de ganho para o canal azul (1.0 = sem ganho)
 
 
 def get_average_color():
@@ -66,21 +66,25 @@ def get_average_color():
 
 
         # --- NORMALIZAÇÃO DA COR ---
-        # Encontra o valor máximo entre R, G e B
+        # Encontra o valor máximo entre R, G e B para a normalização
         max_val = max(r, g, b)
 
-        # Evita divisão por zero se a cor for preta
+        # Evita divisão por zero se a cor for preta (todos os canais são 0)
         if max_val > 0:
-            # Calcula o fator de escala para que o canal mais forte seja 255
+            # Calcula o fator de escala para que o canal mais brilhante atinja 255
             scale = 255.0 / max_val
-            # Aplica o fator de escala a todos os canais e garante que não passe de 255
-            r = int(min(r * scale + 9, 264))
-            g = int(min(g * scale + 9, 264)) 
-            b = int(min(b * scale + 9, 264))
+            r = int(r * scale)
+            g = int(g * scale)
+            b = int(b * scale)
+
+        # Garante que os valores finais estejam no intervalo 0-255
+        r = (np.clip(r, 0, 255))
+        g = (np.clip(g, 0, 255))
+        b = (np.clip(b, 0, 255))
         # --- FIM DA NORMALIZAÇÃO ---
 
         # Adiciona o texto com os valores RGB na imagem
-        text = f"RGB: ({r - 9}, {g - 9}, {b - 9})"
+        text = f"RGB: ({r}, {g}, {b})"
 
         font = cv2.FONT_HERSHEY_SIMPLEX
         position = (10, 30)
@@ -95,12 +99,11 @@ def get_average_color():
         cv2.imshow('Captured Area', img_np)
         return r, g, b
 
-def send_artnet_dmx(r, g, b):
-    dmx_data = [0]*512
-    # Adiciona 9 a cada canal para compensar o offset observado
-    dmx_data[1] = min(255, r )
-    dmx_data[2] = min(255, g)
-    dmx_data[3] = min(255, b)
+def send_artnet_dmx(sock, r, g, b):
+    dmx_data = [0] * 512
+    dmx_data[1] = r
+    dmx_data[2] = g
+    dmx_data[3] = b
 
     # Art-Net packet
     header = b'Art-Net\x00'              # Art-Net ID
@@ -113,28 +116,37 @@ def send_artnet_dmx(r, g, b):
     payload = bytes(dmx_data)
 
     packet = header + opcode + protocol + sequence + physical + universe + length + payload
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.sendto(packet, (QLC_IP, ARTNET_PORT))
 
 if __name__ == "__main__":
     print("Iniciando captura e envio de cor para QLC+ via Art-Net...")
-    last_r, last_g, last_b = 0, 0, 0
-    while True:
-        r, g, b = get_average_color()
+    print("Pressione 'q' na janela de visualização para sair.")
 
-        # Suaviza a transição de cor e garante que os valores não excedam 255
-        smooth_r = min(255, int(last_r + (r - last_r) * SMOOTHING_FACTOR))
-        smooth_g = min(255, int(last_g + (g - last_g) * SMOOTHING_FACTOR))
-        smooth_b = min(255, int(last_b + (b - last_b) * SMOOTHING_FACTOR))
+    # Cria o socket uma única vez
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        last_r, last_g, last_b = 0, 0, 0
 
-        send_artnet_dmx(smooth_r, smooth_g, smooth_b)
-        print(f"Cor enviada: R={smooth_r} G={smooth_g} B={smooth_b}")
+        while True:
+            r, g, b = get_average_color()
 
-        last_r, last_g, last_b = smooth_r, smooth_g, smooth_b
+            # Suaviza a transição de cor
+            smooth_r = int(last_r + (r - last_r) * SMOOTHING_FACTOR)
+            smooth_g = int(last_g + (g - last_g) * SMOOTHING_FACTOR)
+            smooth_b = int(last_b + (b - last_b) * SMOOTHING_FACTOR)
 
-        # Para fechar a janela de visualização pressione 'q'
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+            # Garante que os valores permaneçam no intervalo 0-255
+            smooth_r = np.clip(smooth_r, 0, 255)
+            smooth_g = np.clip(smooth_g, 0, 255)
+            smooth_b = np.clip(smooth_b, 0, 255)
+
+            send_artnet_dmx(sock, smooth_r, smooth_g, smooth_b)
+            print(f"Cor enviada: R={smooth_r} G={smooth_g} B={smooth_b}")
+
+            last_r, last_g, last_b = smooth_r, smooth_g, smooth_b
+
+            # Para fechar a janela de visualização pressione 'q'
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
     cv2.destroyAllWindows()
+    print("Script finalizado.")
