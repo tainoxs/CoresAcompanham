@@ -9,14 +9,11 @@ import cv2
 QLC_IP = "127.0.0.1"
 ARTNET_PORT = 6454
 
-# AJUSTES FINOS
-SMOOTHING_FACTOR = 0.1# Fator de suavização (0.0 a 1.0). Valores menores = mais suave.
-BRIGHTNESS_GAIN = 0  # Valor a ser adicionado (0-255) (FICA MAIS BRANCO)
-SATURATION_FACTOR = 0.8 # Fator de Saturação (1.0 = normal, >1.0 = mais saturado)
-R_GAIN = 1.0 # Fator de ganho para o canal vermelho (1.0 = sem ganho)
-G_GAIN = 1 # Fator de ganho para o canal verde (1.0 = sem ganho)
-B_GAIN = 0.75 # Fator de ganho para o canal azul (1.0 = sem ganho)
-
+# Fator de suavização (0.0 a 1.0). Valores menores = mais suave.
+SMOOTHING_FACTOR = 0.1
+# Ajuste estes valores para o brilho e saturação desejados
+BRIGHTNESS_GAIN = 200  # Valor a ser adicionado (0-255)
+SATURATION_FACTOR = 1.0 # Fator de Saturação (1.0 = normal, >1.0 = mais saturado)
 
 def get_average_color():
     with mss.mss() as sct:
@@ -60,28 +57,12 @@ def get_average_color():
 
         # Lógica condicional para multiplicar a cor dominante (REMOVIDA)
         # Agora apenas usamos a média direta da imagem já ajustada
-        r = int(r_avg * R_GAIN)
-        g = int(g_avg * G_GAIN)
-        b = int(b_avg * B_GAIN)
-
-
-        # --- NORMALIZAÇÃO DA COR ---
-        # Encontra o valor máximo entre R, G e B
-        max_val = max(r, g, b)
-
-        # Evita divisão por zero se a cor for preta
-        if max_val > 0:
-            # Calcula o fator de escala para que o canal mais forte seja 255
-            scale = 255.0 / max_val
-            # Aplica o fator de escala a todos os canais e garante que não passe de 255
-            r = int(min(r * scale + 9, 264))
-            g = int(min(g * scale + 9, 264)) 
-            b = int(min(b * scale + 9, 264))
-        # --- FIM DA NORMALIZAÇÃO ---
+        r = int(r_avg)
+        g = int(g_avg * 0.95)
+        b = int(b_avg * 0.8)
 
         # Adiciona o texto com os valores RGB na imagem
-        text = f"RGB: ({r - 9}, {g - 9}, {b - 9})"
-
+        text = f"RGB: ({r}, {g}, {b})"
         font = cv2.FONT_HERSHEY_SIMPLEX
         position = (10, 30)
         font_scale = 1
@@ -97,10 +78,9 @@ def get_average_color():
 
 def send_artnet_dmx(r, g, b):
     dmx_data = [0]*512
-    # Adiciona 9 a cada canal para compensar o offset observado
-    dmx_data[1] = min(255, r )
-    dmx_data[2] = min(255, g)
-    dmx_data[3] = min(255, b)
+    dmx_data[1] = r
+    dmx_data[2] = g
+    dmx_data[3] = b
 
     # Art-Net packet
     header = b'Art-Net\x00'              # Art-Net ID
